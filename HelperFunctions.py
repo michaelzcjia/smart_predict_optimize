@@ -114,7 +114,7 @@ class ShortestPathSolver:
         return self.w.value
 
 
-def DirectSolution(A, b, X, C):
+def DirectSolution(A, b, X, C, reg_weight=0):
     '''
     Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
     
@@ -138,7 +138,9 @@ def DirectSolution(A, b, X, C):
     P=cp.Variable((num_samples,A.shape[0]), nonneg=True) #B has shape [num_samples, num_nodes]
     
     #define linear program objective and constraints
-    objective = (cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C)))/num_samples
+    objective = ((cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C)))/num_samples)
+    if reg_weight>0:
+        objective+=reg_weight*cp.atoms.norm(B, 'fro')
     prob = cp.Problem(cp.Minimize(objective), 
                                    [(P@A) <= ((2*(X@B.T)) - C)])
     #solve
