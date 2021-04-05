@@ -1,7 +1,7 @@
 import numpy as np
 import cvxpy as cp
 
-#testing
+
 
 def generate_data(n, p, grid_dim, sigma, noise, degree):
     '''
@@ -20,17 +20,17 @@ def generate_data(n, p, grid_dim, sigma, noise, degree):
         np.array C: cost data of dimension [num_samples, d]
     '''
     # Define number of edges based on griworksd size, i.e. size of cost vector
-    d = grid_dim*(grid_dim-1)*2
+    d = grid_dim * (grid_dim - 1) * 2
 
     # Define the parameters of the true model
-    B_star = np.random.binomial(size=[d,p], n=1, p= 0.5) # each entry of B is a bernoulli RV with prob = 0.5 entry is 1
+    B_star = np.random.binomial(size = [d,p], n = 1, p = 0.5) # each entry of B is a bernoulli RV with prob = 0.5 entry is 1
 
     # Generate feature data: Generated from multivariate Gaussian distribution with i.i.d. standard normal entries --> x ~ N(0, sigma)
     X = np.random.normal(loc = 0, scale = sigma, size = [n, p]) # each row is a training point of size p
-
+    
     # Generate cost data
-    noise_vector = np.random.uniform(low = 1-noise, high = 1+noise, size = [n, d]) # i.i.d noise terms
-    C = np.multiply((((1/np.sqrt(p) * B_star@X.T) + 3)**degree + 1).T, noise_vector)
+    noise_vector = np.random.uniform(low = 1 - noise, high = 1 + noise, size = [n, d]) # i.i.d noise terms
+    C = np.multiply( (( (1/np.sqrt(p) * B_star@X.T) + 3) ** degree + 1).T, noise_vector)
     
     return X, C
 
@@ -54,8 +54,8 @@ def CreateShortestPathConstraints(gridsize):
     num_edges = num_directional_edges*2 #sum vertical and horizontal edges together
     
     #initialize empty A and B arrays
-    A = np.zeros((num_nodes,num_edges),np.int8)
-    b = np.zeros(num_nodes,np.int8)
+    A = np.zeros((num_nodes, num_edges), np.int8)
+    b = np.zeros(num_nodes, np.int8)
     
     #Fill in flow matrix
     #nodes are ordered by rows. ex. in a 3x3 grid the first rows nodes are indices 1,2,3 and second row is 4,5,6
@@ -65,27 +65,27 @@ def CreateShortestPathConstraints(gridsize):
     for i in range(num_directional_edges):
         #update flow matrix for horizontal edges
         outnode = horizontaledgepointer
-        innode = horizontaledgepointer+1
+        innode = horizontaledgepointer + 1
         
-        A[outnode,i] = -1
-        A[innode,i] = 1
-        horizontaledgepointer+=1
-        if (horizontaledgepointer+1)%gridsize==0:#node is at right edge of the grid so  go to next row
-            horizontaledgepointer+=1
+        A[outnode, i] = -1
+        A[innode, i] = 1
+        horizontaledgepointer += 1
+        if (horizontaledgepointer + 1)% gridsize == 0:#node is at right edge of the grid so  go to next row
+            horizontaledgepointer += 1
         
         #update flow matrix for vertical edges
         outnode = verticaledgepointer
-        innode = verticaledgepointer+gridsize
-        A[outnode,num_directional_edges+i] = -1
-        A[innode,num_directional_edges+i] = 1
-        verticaledgepointer+=gridsize
-        if verticaledgepointer+gridsize>=num_nodes:#node is at bottom edge of the grid so go to next column
-            verticaledgepointer= (verticaledgepointer%gridsize)+1
+        innode = verticaledgepointer + gridsize
+        A[outnode, num_directional_edges + i] = -1
+        A[innode, num_directional_edges + i] = 1
+        verticaledgepointer += gridsize
+        if verticaledgepointer + gridsize >= num_nodes:#node is at bottom edge of the grid so go to next column
+            verticaledgepointer = (verticaledgepointer % gridsize) + 1
         
     #update RHS for start and end nodes
     b[0] = -1
     b[-1] = 1 
-    return A,b
+    return A, b
 
 
 class ShortestPathSolver:
@@ -94,15 +94,15 @@ class ShortestPathSolver:
         Defines binary optimization problem to solve the shortest path problem with constraint matrix A and RHS b as numpy arrays
         Parameters:
             np.array A: constraint matrix A
-            np.array B: RHS of constraints
+            np.array b: RHS of constraints
 
         '''
-        if A.shape[0]!=b.size:
+        if A.shape[0] != b.size:
             print('invalid input')
             return
         numedges = A.shape[1]
-        self.c = cp.Parameter(numedges, nonneg=True)
-        self.w = cp.Variable(numedges, boolean=True)
+        self.c = cp.Parameter(numedges, nonneg = True)
+        self.w = cp.Variable(numedges, boolean = True)
         self.prob = cp.Problem(cp.Minimize(self.c@self.w), 
                                [A @ self.w == b, A[0,:]@ self.w <= b[0]]) #add a trivial inequality constraint because necessary for GLPK_MI solver
         
@@ -111,7 +111,7 @@ class ShortestPathSolver:
         Solves the predefined optmiization problem with cost vector c and returns the decision variable array
         '''
         self.c.project_and_assign(c)
-        self.prob.solve(solver='GLPK_MI')
+        self.prob.solve(solver = 'GLPK_MI')
         return self.w.value
 
 
@@ -128,22 +128,52 @@ def DirectSolution(A, b, X, C, reg_weight=0):
     Returns:
         np.array B: coefficient matrix of fitted linear models [num_edges, num_features]
     '''
-    num_samples=X.shape[0]
+    num_samples = X.shape[0]
 
     #solve every shortest path problem
-    solver = ShortestPathSolver(A,b)
-    W=np.apply_along_axis(solver.solve,1,C)#W has shape [num_samples, num_edges]
+    solver = ShortestPathSolver(A, b)
+    W = np.apply_along_axis(solver.solve, 1, C)#W has shape [num_samples, num_edges]
 
     #define linear program variables
-    B=cp.Variable((A.shape[1],X.shape[1])) #B has shape [num_edges, num_features]
-    P=cp.Variable((num_samples,A.shape[0]), nonneg=True) #B has shape [num_samples, num_nodes]
+    B = cp.Variable( (A.shape[1], X.shape[1]) ) #B has shape [num_edges, num_features]
+    P = cp.Variable((num_samples, A. shape[0]), nonneg = True) #B has shape [num_samples, num_nodes]
     
     #define linear program objective and constraints
-    objective = ((cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C)))/num_samples)
-    if reg_weight>0:
-        objective+=reg_weight*cp.atoms.norm(B, 'fro')
+    objective = ( (cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C))) / num_samples)
+    if reg_weight > 0:
+        objective += reg_weight*cp.atoms.norm(B, 'fro')
     prob = cp.Problem(cp.Minimize(objective), 
                                    [(P@A) <= ((2*(X@B.T)) - C)])
     #solve
     prob.solve()
     return B.value
+'''
+
+note for experiment generation: Generate data for different instances of n and p 
+
+'''
+def generate_sigma(p):
+    ''' 
+    Generates a list 'sigma' of length p, where sigma is the variance of each feature vector dimension i.e. x_i ~ N(0, sigma_p)
+
+    input: p (int) represents the number of features
+
+    returns: sigma (list of floats)
+        EXAMPLE:    
+            n = 100
+            p = 5 
+            grid_dim = 5 
+            sigma = [0.1, 0.2, 0.3, 0.4, 0.5]
+            noise = 0.25
+            degree = 3
+
+            X, C = generate_data(n, p, grid_dim, sigma, noise, degree)
+            A,b = CreateShortestPathConstraints(grid_dim)
+            B1 = DirectSolution(A, b, X, C)
+    ''' 
+    #not done continue later
+    sigma = []
+    for i in range(p): 
+        num = np.random.normal()
+
+    return sigma 
