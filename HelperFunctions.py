@@ -113,6 +113,26 @@ class ShortestPathSolver:
         self.c.project_and_assign(c)
         self.prob.solve(solver = 'GLPK_MI')
         return self.w.value
+    
+    
+class SupportFunctionSolver:
+    def __init__(self,A,b):
+        if A.shape[0] != b.size:
+            print('invalid input')
+            return
+        numedges = A.shape[1]
+        self.c = cp.Parameter(numedges, nonneg = True)
+        self.w = cp.Variable(numedges, boolean = True)
+        self.prob = cp.Problem(cp.Maximize(self.c@self.w), 
+                               [A @ self.w == b, A[0,:]@ self.w <= b[0]]) #add a trivial inequality constraint because necessary for GLPK_MI solver
+        
+    def solve(self,c, return_path=True):
+        '''
+        Solves the predefined optmiization problem with cost vector c and returns the objective value
+        '''
+        self.c.project_and_assign(c)
+        self.prob.solve(solver = 'GLPK_MI')
+        return self.prob.objective.value
 
     
     
@@ -124,10 +144,9 @@ def SPOLoss(solver, X,C, B):
 
 
 
-def SPOplusLoss(solver, X,C, B):
+def SPOplusLoss(solver,supportsolver, X,C, B):
     pred2 = 2*(X@B.T)
-    W_support = np.apply_along_axis(solver.solve,1,pred2-C)
-    support =np.multiply(C,W_support).sum(axis=1)
+    support = np.apply_along_axis(supportsolver.solve,1,C-pred2)
     W_star = np.apply_along_axis(solver.solve,1,C)
     z_star = np.multiply(C,W_star).sum(axis=1)
     return (support + np.multiply(pred2,W_star).sum(axis=1) - z_star).mean()
