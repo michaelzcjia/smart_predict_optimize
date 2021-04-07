@@ -144,3 +144,70 @@ def DirectSolution(A, b, X, C):
     #solve
     prob.solve()
     return B.value
+
+def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
+    '''
+    Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
+    
+    Parameters:
+        np.array A: Constraint matrix [num_nodes, num_edges]
+        np.array b: RHS of constraints [num_nodes]
+        np.array X: Feature Matrix [num_samples, num_features]
+        np.array C: Cost Matrix [num_samples, num_edges]
+        integer batch_size: batch size  
+
+    Returns:
+        np.array B: coefficient matrix of fitted linear models [num_edges, num_features]
+    '''
+    epsilon = 0.001
+    loop = True 
+
+    #solve every shortest path problem
+    solver = ShortestPathSolver(A,b)
+    W_c = np.apply_along_axis(solver.solve,1,C)#W has shape [num_samples, num_edges]
+    B = np.zeros((A.shape[1],X.shape[1])) #B has shape [num_edges, num_features]
+    
+    step=0
+    while loop:      
+        # get a random sample of indices of size batch_size
+        batch_indices = np.random.randint(0,len(X),batch_size)
+        X_sample = X[batch_indices]
+        C_sample = C[batch_indices]
+        W_c_sample = W_c[batch_indices]
+        
+#         print(f'B: {B.shape}')
+#         print(f'X: {X.shape}')
+#         print(f'w_j_t: {objectives.shape}')
+        
+        # solve for the gradient of the unregularized objective function
+        objectives = 2*(B@X_sample.T).T - C_sample
+        W_batch=np.apply_along_axis(solver.solve,1,objectives)
+        G_batch = (W_c_sample-W_batch).T@X_sample # might not be the same as mean
+        
+#         print(f'gradient: {G_batch.shape}')
+        
+        # calculate the gradient step  
+        grad = G_batch/batch_size
+        # with l2 regularization
+        if r == "l2":
+            grad_of_l2 = grad # TODO, derivative of frob norm
+            learning_rate = 2/(r_strength(step+1))
+            grad_step = learning_rate(grad + r_strength*grad)
+        # without regularization 
+        else:
+            learning_rate = 1/(step+1)**(1/2)
+            grad_step = learning_rate*grad
+            
+        # calculate new weights
+        B_new = B + grad_step
+        
+        # stopping condition
+        if np.mean(np.abs(B@X.T - B_new@X.T)) < epsilon: 
+            loop = False 
+            print(f'Converged after {step} steps')
+
+        # update weights 
+        B = B_new
+        step += 1
+            
+    return B 
