@@ -106,7 +106,7 @@ class ShortestPathSolver:
         self.prob = cp.Problem(cp.Minimize(self.c@self.w), 
                                [A @ self.w == b, A[0,:]@ self.w <= b[0]]) #add a trivial inequality constraint because necessary for GLPK_MI solver
         
-    def solve(self,c):
+    def solve(self,c, return_path=True):
         '''
         Solves the predefined optmiization problem with cost vector c and returns the decision variable array
         '''
@@ -114,6 +114,26 @@ class ShortestPathSolver:
         self.prob.solve(solver = 'GLPK_MI')
         return self.w.value
 
+    
+    
+def SPOLoss(solver, X,C, B):
+    W=np.apply_along_axis(solver.solve,1,X@B.T)
+    W_star = np.apply_along_axis(solver.solve,1,C)
+    return (np.multiply(C,W).sum()-np.multiply(C,W_star).sum())/W.shape[0]
+
+
+
+
+def SPOplusLoss(solver, X,C, B):
+    pred2 = 2*(X@B.T)
+    W_support = np.apply_along_axis(solver.solve,1,pred2-C)
+    support =np.multiply(C,W_support).sum(axis=1)
+    W_star = np.apply_along_axis(solver.solve,1,C)
+    z_star = np.multiply(C,W_star).sum(axis=1)
+    return (support + np.multiply(pred2,W_star).sum(axis=1) - z_star).mean()
+    
+    
+    
 
 def DirectSolution(A, b, X, C, reg_weight=0):
     '''
@@ -136,7 +156,7 @@ def DirectSolution(A, b, X, C, reg_weight=0):
 
     #define linear program variables
     B = cp.Variable( (A.shape[1], X.shape[1]) ) #B has shape [num_edges, num_features]
-    P = cp.Variable((num_samples, A. shape[0]), nonneg = True) #B has shape [num_samples, num_nodes]
+    P = cp.Variable((num_samples, A.shape[0]), nonneg = True) #B has shape [num_samples, num_nodes]
     
     #define linear program objective and constraints
     objective = ( (cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C))) / num_samples)
@@ -148,7 +168,7 @@ def DirectSolution(A, b, X, C, reg_weight=0):
     prob.solve()
     return B.value
 
-def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
+def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.001):
     '''
     Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
     
@@ -162,7 +182,7 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
     Returns:
         np.array B: coefficient matrix of fitted linear models [num_edges, num_features]
     '''
-    epsilon = 0.001
+    
     loop = True 
 
     #solve every shortest path problem
@@ -173,17 +193,19 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
     step=0
     while loop:      
         # get a random sample of indices of size batch_size
+
         batch_indices = np.random.randint(0,len(X),batch_size)
         X_sample = X[batch_indices]
         C_sample = C[batch_indices]
         W_c_sample = W_c[batch_indices]
+
         
 #         print(f'B: {B.shape}')
 #         print(f'X: {X.shape}')
 #         print(f'w_j_t: {objectives.shape}')
         
         # solve for the gradient of the unregularized objective function
-        objectives = 2*(B@X_sample.T).T - C_sample
+        objectives = (2*(X_sample@B.T)) - C_sample
         W_batch=np.apply_along_axis(solver.solve,1,objectives)
         G_batch = (W_c_sample-W_batch).T@X_sample # might not be the same as mean
         
@@ -192,17 +214,17 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
         # calculate the gradient step  
         grad = G_batch/batch_size
         # with l2 regularization
-        if r == "l2":
-            grad_of_l2 = grad # TODO, derivative of frob norm
-            learning_rate = 2/(r_strength(step+1))
-            grad_step = learning_rate(grad + r_strength*grad)
+        if reg_weight>0:
+            grad_of_l2 = grad # TODO, derivative of frob norm###########################################
+            learning_rate = 2/(reg_weight(step+1))
+            grad_step = learning_rate(grad + reg_weight*grad)
         # without regularization 
         else:
             learning_rate = 1/(step+1)**(1/2)
             grad_step = learning_rate*grad
             
         # calculate new weights
-        B_new = B + grad_step
+        B_new = B - grad_step
         
         # stopping condition
         if np.mean(np.abs(B@X.T - B_new@X.T)) < epsilon: 
@@ -214,6 +236,8 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, r=None, r_strength=0.1):
         step += 1
             
     return B 
+
+
 '''
 
 note for experiment generation: Generate data for different instances of n and p 
