@@ -170,10 +170,10 @@ def DirectSolution(A, b, X, C, reg_weight=0):
     prob = cp.Problem(cp.Minimize(objective), 
                                    [(P@A) <= ((2*(X@B.T)) - C)])
     #solve
-    prob.solve()
+    prob.solve(verbose=True)
     return B.value
 
-def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.001):
+def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.001, epsilonsample=5):
     '''
     Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
     
@@ -196,6 +196,7 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
     B = np.zeros((A.shape[1],X.shape[1])) #B has shape [num_edges, num_features]
     
     step=0
+    epsilons=[]
     while loop:      
         # get a random sample of indices of size batch_size
 
@@ -232,7 +233,10 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
         B_new = B - grad_step
         
         # stopping condition
-        if np.mean(np.abs(B@X.T - B_new@X.T)) < epsilon: 
+        if len(epsilons)==epsilonsample:
+            epsilons.pop(0)
+        epsilons.append(np.mean(np.abs(B@X.T - B_new@X.T)))
+        if np.mean(epsilons) < epsilon: 
             loop = False 
             print(f'Converged after {step} steps')
 
