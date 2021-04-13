@@ -170,7 +170,7 @@ def DirectSolution(A, b, X, C, reg_weight=0):
     prob = cp.Problem(cp.Minimize(objective), 
                                    [(P@A) <= ((2*(X@B.T)) - C)])
     #solve
-    prob.solve(verbose=True)
+    prob.solve()
     return B.value
 
 def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.001, epsilonsample=5):
