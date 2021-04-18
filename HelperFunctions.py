@@ -199,16 +199,10 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
     epsilons=[]
     while loop:      
         # get a random sample of indices of size batch_size
-
         batch_indices = np.random.randint(0,len(X),batch_size)
         X_sample = X[batch_indices]
         C_sample = C[batch_indices]
         W_c_sample = W_c[batch_indices]
-
-        
-#         print(f'B: {B.shape}')
-#         print(f'X: {X.shape}')
-#         print(f'w_j_t: {objectives.shape}')
         
         # solve for the gradient of the unregularized objective function
         objectives = (2*(X_sample@B.T)) - C_sample
