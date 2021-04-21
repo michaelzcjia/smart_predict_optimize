@@ -102,16 +102,16 @@ class ShortestPathSolver:
             return
         numedges = A.shape[1]
         self.c = cp.Parameter(numedges)
-        self.w = cp.Variable(numedges, boolean = True)
+        self.w = cp.Variable(numedges, nonneg=True)
         self.prob = cp.Problem(cp.Minimize(self.c@self.w), 
-                               [A @ self.w == b, A[0,:]@ self.w <= b[0]]) #add a trivial inequality constraint because necessary for GLPK_MI solver
+                               [A @ self.w == b, self.w <= 1]) #add a trivial inequality constraint because necessary for GLPK_MI solver
         
     def solve(self,c, return_path=True):
         '''
         Solves the predefined optmiization problem with cost vector c and returns the decision variable array
         '''
         self.c.project_and_assign(c)
-        self.prob.solve(solver = 'GLPK_MI')
+        self.prob.solve()
         return self.w.value
     
     
