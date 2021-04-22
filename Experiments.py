@@ -79,7 +79,7 @@ def problem_size_experiment(params, noise, degree,sigma, iterations=30):
     return experimental_results
 
 
-params = {"n": [100,200,300,400,500,600,700,800,900,1000], "p": [20], "grid_dim": [5]}
+params = {"n": [100,200,300,400,500,600,700,800,900,1000], "p": [5,10,15,20], "grid_dim": [5]}
 noise = 0.25
 degree = 3
 sigma=0.2
