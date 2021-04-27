@@ -6,7 +6,7 @@ import pickle
 def problem_size_experiment(params, noise, degree,sigma, iterations=30):
     
     ''' 
-    Runs the direct and SGD solvers with given input paraemters
+    Runs the direct and SGD solvers with given input parameters
     
     input: 
         dict{str:list} params: dictionary of parameter values to experiment with. Must specify 'n', 'p', and 'grid_size'
@@ -84,4 +84,4 @@ degree = 3
 sigma=0.2
 
 experiment1 = problem_size_experiment(params, noise, degree,sigma,iterations=30)
-pickle.dump(experiment1,open('SPOresultsAllVars.pkl','wb'))
+pickle.dump(experiment1, open('SPOresultsAllVars.pkl','wb'))

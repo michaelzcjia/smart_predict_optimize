@@ -2,7 +2,6 @@ import numpy as np
 import cvxpy as cp
 
 
-
 def generate_data(n, p, grid_dim, sigma, noise, degree):
     '''
     Generate data for nxn grid
@@ -48,41 +47,41 @@ def CreateShortestPathConstraints(gridsize):
         np.array A: Flow matrix of shape [num_nodes, num_edges]. Aij is -1 if the edge j is an outflow of node i and 1 if edge edge j is an inflow of node i
         np.array b: RHS of constraints [num_nodes]
     '''
-    #define node and edge sizes
+    # define node and edge sizes
     num_nodes = gridsize**2
-    num_directional_edges = (num_nodes - gridsize) #num vertical edges and num horizontal edges
-    num_edges = num_directional_edges*2 #sum vertical and horizontal edges together
+    num_directional_edges = (num_nodes - gridsize) # num vertical edges and num horizontal edges
+    num_edges = num_directional_edges*2 # sum vertical and horizontal edges together
     
-    #initialize empty A and B arrays
+    # initialize empty A and B arrays
     A = np.zeros((num_nodes, num_edges), np.int8)
     b = np.zeros(num_nodes, np.int8)
     
-    #Fill in flow matrix
-    #nodes are ordered by rows. ex. in a 3x3 grid the first rows nodes are indices 1,2,3 and second row is 4,5,6
-    #horizontal edges are enumerated first and then vertical edges
+    # fill in flow matrix
+    # nodes are ordered by rows. ex. in a 3x3 grid the first rows nodes are indices 1,2,3 and second row is 4,5,6
+    # horizontal edges are enumerated first and then vertical edges
     horizontaledgepointer = 0
     verticaledgepointer = 0
     for i in range(num_directional_edges):
-        #update flow matrix for horizontal edges
+        # update flow matrix for horizontal edges
         outnode = horizontaledgepointer
         innode = horizontaledgepointer + 1
         
         A[outnode, i] = -1
         A[innode, i] = 1
         horizontaledgepointer += 1
-        if (horizontaledgepointer + 1)% gridsize == 0:#node is at right edge of the grid so  go to next row
+        if (horizontaledgepointer + 1)% gridsize == 0:# node is at right edge of the grid so  go to next row
             horizontaledgepointer += 1
         
-        #update flow matrix for vertical edges
+        # update flow matrix for vertical edges
         outnode = verticaledgepointer
         innode = verticaledgepointer + gridsize
         A[outnode, num_directional_edges + i] = -1
         A[innode, num_directional_edges + i] = 1
         verticaledgepointer += gridsize
-        if verticaledgepointer + gridsize >= num_nodes:#node is at bottom edge of the grid so go to next column
+        if verticaledgepointer + gridsize >= num_nodes:# node is at bottom edge of the grid so go to next column
             verticaledgepointer = (verticaledgepointer % gridsize) + 1
         
-    #update RHS for start and end nodes
+    # update RHS for start and end nodes
     b[0] = -1
     b[-1] = 1 
     return A, b
@@ -92,10 +91,10 @@ class ShortestPathSolver:
     def __init__(self,A,b):
         '''
         Defines binary optimization problem to solve the shortest path problem with constraint matrix A and RHS b as numpy arrays
+        
         Parameters:
             np.array A: constraint matrix A
             np.array b: RHS of constraints
-
         '''
         if A.shape[0] != b.size:
             print('invalid input')
@@ -106,9 +105,16 @@ class ShortestPathSolver:
         self.prob = cp.Problem(cp.Minimize(self.c@self.w), 
                                [A @ self.w == b, self.w <= 1]) #add a trivial inequality constraint because necessary for GLPK_MI solver
         
-    def solve(self,c, return_path=True):
+    def solve(self,c):
         '''
         Solves the predefined optmiization problem with cost vector c and returns the decision variable array
+        
+        Parameters:
+            np.array c: cost vector 
+            np.array b: RHS of constraints
+        
+        Returns:
+            np.array of the solution to the shortest path problem
         '''
         self.c.project_and_assign(c)
         self.prob.solve()
@@ -116,9 +122,19 @@ class ShortestPathSolver:
     
     
     
-def SPOLoss(solver, X,C, B):
+def SPOLoss(solver, X, C, B):
     '''
     Computes the SPO (decision) loss
+
+    Parameters:
+        ShortestPathSolver solver: a shortest path solver object
+        np.array X: Feature Matrix [num_samples, num_features]
+        np.array C: Cost Matrix [num_samples, num_edges]
+        np.array B: Weights for the linear model 
+        float reg_weight: the regularization weight
+
+    Returns:
+        SPOLoss as a float 
     '''
     W=np.apply_along_axis(solver.solve,1,X@B.T)
     W_star = np.apply_along_axis(solver.solve,1,C)
@@ -126,9 +142,19 @@ def SPOLoss(solver, X,C, B):
 
 
 
-def SPOplusLoss(solver, X,C, B):
+def SPOplusLoss(solver, X, C, B):
     '''
     Computes the SPO+ loss. This is an upper bound on the SPO loss.
+
+      Parameters:
+        ShortestPathSolver solver: a shortest path solver object
+        np.array X: Feature Matrix [num_samples, num_features]
+        np.array C: Cost Matrix [num_samples, num_edges]
+        np.array B: Weights for the linear model 
+        float reg_weight: the regularization weight
+
+    Returns:
+        SPOLoss as a float 
     '''
     pred2 = 2*(X@B.T)
     W_support = np.apply_along_axis(solver.solve,1,pred2-C)
@@ -138,9 +164,8 @@ def SPOplusLoss(solver, X,C, B):
     return (support + np.multiply(pred2,W_star).sum(axis=1) - z_star).mean()
     
     
-    
 
-def DirectSolution(A, b, X, C, reg_weight=0):
+def DirectSolution(A, b, X, C, reg_weight=0.0):
     '''
     Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
     
@@ -149,6 +174,7 @@ def DirectSolution(A, b, X, C, reg_weight=0):
         np.array b: RHS of constraints [num_nodes]
         np.array X: Feature Matrix [num_samples, num_features]
         np.array C: Cost Matrix [num_samples, num_edges]
+        float reg_weight: the regularization weight
 
     Returns:
         np.array B: coefficient matrix of fitted linear models [num_edges, num_features]
@@ -173,7 +199,8 @@ def DirectSolution(A, b, X, C, reg_weight=0):
     prob.solve()
     return B.value
 
-def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.001, epsilonsample=5):
+
+def GradientDescentSolution(A, b, X, C, batch_size=5, epsilon = 0.001, epsilonsample=5):
     '''
     Computes the direct solution that minimizes the SPO+ loss given the hypothesis class of linear models B
     
@@ -183,20 +210,22 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
         np.array X: Feature Matrix [num_samples, num_features]
         np.array C: Cost Matrix [num_samples, num_edges]
         integer batch_size: batch size  
+        float epsilon: the threshold used for the algorithms stopping condition
+        int epsilonsample: the number of steps that the results are averaged over to be compared to the epsilon for the stopping condition
 
     Returns:
         np.array B: coefficient matrix of fitted linear models [num_edges, num_features]
     '''
     
     loop = True 
+    step=0 # keeps track of the iteration number in gradient descent
+    epsilons=[] # keeps track of the last "epsilonsample" number
 
     #solve every shortest path problem
     solver = ShortestPathSolver(A,b)
-    W_c = np.apply_along_axis(solver.solve,1,C)#W has shape [num_samples, num_edges]
+    W_c = np.apply_along_axis(solver.solve,1,C) #W has shape [num_samples, num_edges]
     B = np.zeros((A.shape[1],X.shape[1])) #B has shape [num_edges, num_features]
     
-    step=0
-    epsilons=[]
     while loop:      
         # get a random sample of indices of size batch_size
         batch_indices = np.random.randint(0,len(X),batch_size)
@@ -208,20 +237,11 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
         objectives = (2*(X_sample@B.T)) - C_sample
         W_batch=np.apply_along_axis(solver.solve,1,objectives)
         G_batch = (W_c_sample-W_batch).T@X_sample # might not be the same as mean
-        
-#         print(f'gradient: {G_batch.shape}')
-        
+                
         # calculate the gradient step  
         grad = G_batch/batch_size
-        # with l2 regularization
-        if reg_weight>0:
-            grad_of_l2 = grad # TODO, derivative of frob norm###########################################
-            learning_rate = 2/(reg_weight(step+1))
-            grad_step = learning_rate(grad + reg_weight*grad)
-        # without regularization 
-        else:
-            learning_rate = 1/(step+1)**(1/2)
-            grad_step = learning_rate*grad
+        learning_rate = 1/(step+1)**(1/2)
+        grad_step = learning_rate*grad
             
         # calculate new weights
         B_new = B - grad_step
@@ -239,35 +259,3 @@ def GradientDescentSolution(A, b, X, C, batch_size=5, reg_weight=0,epsilon = 0.0
         step += 1
             
     return B 
-
-
-'''
-
-note for experiment generation: Generate data for different instances of n and p 
-
-'''
-def generate_sigma(p):
-    ''' 
-    Generates a list 'sigma' of length p, where sigma is the variance of each feature vector dimension i.e. x_i ~ N(0, sigma_p)
-
-    input: p (int) represents the number of features
-
-    returns: sigma (list of floats)
-        EXAMPLE:    
-            n = 100
-            p = 5 
-            grid_dim = 5 
-            sigma = [0.1, 0.2, 0.3, 0.4, 0.5]
-            noise = 0.25
-            degree = 3
-
-            X, C = generate_data(n, p, grid_dim, sigma, noise, degree)
-            A,b = CreateShortestPathConstraints(grid_dim)
-            B1 = DirectSolution(A, b, X, C)
-    ''' 
-    #not done continue later
-    sigma = []
-    for i in range(p): 
-        num = np.random.normal()
-
-    return sigma 
