@@ -161,7 +161,7 @@ def DirectSolution(A, b, X, C, reg_weight=0):
 
     #define linear program variables
     B = cp.Variable( (A.shape[1], X.shape[1]) ) #B has shape [num_edges, num_features]
-    P = cp.Variable((num_samples, A.shape[0]), nonneg = True) #B has shape [num_samples, num_nodes]
+    P = cp.Variable((num_samples, A.shape[0]), nonneg = True) #P has shape [num_samples, num_nodes]
     
     #define linear program objective and constraints
     objective = ( (cp.sum(-P@b) + 2*cp.sum(cp.multiply(X@B.T,W)) - cp.sum(cp.multiply(W,C))) / num_samples)
