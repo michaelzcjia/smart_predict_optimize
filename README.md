@@ -12,7 +12,7 @@ pip install requirements.txt
 ## Code Overview
 
 ### HelperFunctions.py
-Contains the majority of the code. Contains functions and classses to:
+Contains the majority of the code. Contains functions and classes to:
 - Generate synthetic data and formulate it into a Shortest Path problem.
 - Compute SPO and SPO+ loss.
 - Solve a Shortest Problem problem as a Linear Program
