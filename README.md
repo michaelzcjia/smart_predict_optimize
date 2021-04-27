@@ -1,4 +1,4 @@
-# Foobar
+# smart_predict_optimize
 
 smart_predict_optimize is a Python implementation of the "Smart, Predict then Optimize" (Elmachtoub and Grigas) framework that aims to the compare the computational efficiency of optimizing with a Linear Program versus optimizing with Stochastic Gradient Descent.
 
